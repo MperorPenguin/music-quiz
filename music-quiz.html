@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Music Quiz — 50 Q (15–20s clips)</title>
+
+<!-- iOS feel -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Music Quiz">
+
+<style>
+:root{
+  --bg:#0e1013; --panel:#171a20; --ink:#f6f7fb; --muted:#aeb5c2;
+  --accent:#4aa8ff; --good:#22c55e; --bad:#ef4444; --line:#232733;
+  --btn:#1d212b; --btnLine:#2a3040;
+}
+html,body{height:100%;margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial,sans-serif}
+.app-wrap{position:fixed;inset:0;display:grid;place-items:center;padding:8vmin 4vmin}
+
+.stage{
+  aspect-ratio:16/9; width:100vw; height:calc(100vw*9/16);
+  max-width:1600px; max-height:900px;
+  background:linear-gradient(180deg,#0f1218,#0b0d12);
+  border:1px solid var(--line); border-radius:18px; box-shadow:0 30px 80px rgba(0,0,0,.5);
+  overflow:hidden; display:flex; flex-direction:column;
+  container-type:inline-size;
+}
+@media(min-aspect-ratio:16/9){ .stage{height:100vh;width:calc(100vh*16/9);} }
+
+.header{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--line)}
+.brand{font-weight:800}
+.badge{font-size:12px;color:var(--muted)}
+.score-chip{background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:6px 10px}
+
+.screen{display:none;height:100%;overflow:auto}
+.screen.active{display:block}
+
+.start{display:grid;grid-template-rows:auto 1fr auto;height:100%}
+.start-main{display:grid;place-items:center;padding:2vmin}
+.cta{display:grid;gap:16px;text-align:center;max-width:900px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:12px 16px;border-radius:12px;cursor:pointer;border:1px solid var(--btnLine);background:var(--btn);color:var(--ink)}
+.btn.primary{background:var(--accent);color:#08131f;border-color:#2d7ed1;font-weight:800}
+.btn.ghost{background:transparent}
+.small{color:var(--muted);font-size:12px}
+
+.quiz{display:grid;grid-template-rows:1fr auto;height:100%}
+.qwrap{padding:18px;display:grid;grid-template-columns:minmax(0,42%) minmax(0,58%);gap:18px;min-height:0;height:100%}
+.media,.qpanel{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px;display:flex;flex-direction:column;min-height:0}
+.art{border-radius:10px;overflow:hidden;background:#0a0c11;aspect-ratio:1/1;margin-bottom:10px}
+.art img{width:100%;height:100%;object-fit:cover}
+audio{width:100%;max-width:100%}
+.meta{font-size:12px;color:var(--muted);margin-top:6px}
+.playrow{display:flex;gap:10px;margin:8px 0 0}
+
+.category{font-size:13px;color:var(--muted)}
+.question{font-size:22px;font-weight:800;margin:6px 0 10px}
+.options{display:grid;gap:10px;margin-top:10px;overflow:auto;-webkit-overflow-scrolling:touch;min-height:0}
+.option{background:var(--btn);border:1px solid var(--btnLine);border-radius:12px;padding:12px;text-align:left;cursor:pointer}
+.option:hover{border-color:var(--accent)}
+.option.correct{border-color:var(--good)}
+.option.incorrect{border-color:var(--bad)}
+
+.text-ans{display:flex;gap:8px;margin-top:10px}
+.text-ans input{flex:1;min-width:0;padding:12px 12px;border-radius:10px;border:1px solid var(--btnLine);background:#121520;color:var(--ink);font-size:16px}
+.feedback{font-size:14px;margin-top:8px}
+.feedback.good{color:var(--good)}
+.feedback.bad{color:var(--bad)}
+
+.navrow{display:flex;justify-content:space-between;gap:10px;padding:12px 18px;border-top:1px solid var(--line)}
+
+.results{display:grid;grid-template-rows:auto 1fr auto}
+.result-body{padding:18px;display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.block{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px}
+.kv{display:grid;gap:6px}
+.review-list{display:grid;gap:10px;max-height:55vh;overflow:auto}
+.review-card{background:#1b1f29;border:1px solid var(--line);border-radius:12px;padding:10px;font-size:14px}
+
+.spinner{display:inline-block;width:16px;height:16px;border:2px solid #2a3040;border-top-color:var(--accent);border-radius:50%;animation:spin .75s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+@container(max-width:900px){ .qwrap{grid-template-columns:1fr;grid-template-rows:auto 1fr} }
+@container(max-width:700px){ .question{font-size:20px} .option{padding:14px} }
+.hidden{display:none !important}
+</style>
+</head>
+<body>
+<div class="app-wrap">
+  <div class="stage">
+    <div class="header">
+      <div><div class="brand">Music Quiz</div><div class="badge" id="crumb">Ready</div></div>
+      <div class="score-chip" id="scoreMini">Score: 0</div>
+    </div>
+
+    <!-- START -->
+    <div class="screen start active" id="screen-start">
+      <div></div>
+      <div class="start-main">
+        <div class="cta">
+          <h1>50-Question Music Quiz</h1>
+          <div class="small">Streams 15–20s iTunes previews · Shows album art · Mix of multiple-choice & text answers</div>
+          <button class="btn primary" id="btnStartAll">Start Full Quiz</button>
+          <div class="small" id="fetchStatus"></div>
+        </div>
+      </div>
+      <div class="small" style="text-align:center;padding:10px">Tip: Add to Home Screen for full-screen. Use Screen Mirroring to cast to TV.</div>
+    </div>
+
+    <!-- QUIZ -->
+    <div class="screen quiz" id="screen-quiz">
+      <div class="qwrap">
+        <div class="media">
+          <div class="art" id="artBox"><img id="artImg" alt=""></div>
+          <audio id="player" preload="none" playsinline controls x-webkit-airplay="allow"></audio>
+          <div class="playrow">
+            <button class="btn" id="btnPlay">Play Clip</button>
+            <button class="btn" id="btnReplay">Replay 15s</button>
+          </div>
+          <div class="meta" id="meta"></div>
+        </div>
+        <div class="qpanel">
+          <div class="category" id="category">Category</div>
+          <div class="question" id="question">Question</div>
+
+          <!-- Multiple-choice container -->
+          <div class="options" id="options"></div>
+
+          <!-- Text-answer container -->
+          <div id="textWrap" class="hidden">
+            <div class="text-ans">
+              <input id="textInput" type="text" placeholder="Type your answer…">
+              <button class="btn primary" id="btnCheck">Check</button>
+            </div>
+            <div class="feedback" id="feedback"></div>
+          </div>
+        </div>
+      </div>
+      <div class="navrow">
+        <button class="btn ghost" id="btnPrev">Back</button>
+        <div><button class="btn primary" id="btnNext">Next</button></div>
+      </div>
+    </div>
+
+    <!-- RESULTS -->
+    <div class="screen results" id="screen-results">
+      <div class="header" style="border:none">
+        <div class="brand">Results</div>
+        <div class="score-chip"><span id="finalScore">0</span> / <span id="finalTotal">50</span></div>
+      </div>
+      <div class="result-body">
+        <div class="block">
+          <h3 style="margin:0 0 8px">Round Scores</h3>
+          <div class="kv">
+            <div><strong>Albums:</strong> <span id="scAlbums">0</span> / 12</div>
+            <div><strong>Intros:</strong> <span id="scIntros">0</span> / 12</div>
+            <div><strong>Year Released:</strong> <span id="scYears">0</span> / 13</div>
+            <div><strong>Band Members:</strong> <span id="scMembers">0</span> / 13</div>
+          </div>
+        </div>
+        <div class="block">
+          <h3 style="margin:0 0 8px">Review</h3>
+          <div class="review-list" id="review"></div>
+        </div>
+      </div>
+      <div class="navrow">
+        <button class="btn" id="btnRestart">Restart</button>
+        <button class="btn primary" id="btnStartRounds">Start Again</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ===================== Config ===================== */
+const ROUND_SIZES = { "Albums":12, "Intros":12, "Year Released":13, "Band Members":13 };
+
+const ARTISTS = {
+  "1980s": ["Michael Jackson","Madonna","Prince","U2","Duran Duran","Whitney Houston","The Smiths","Depeche Mode","A-ha","Eurythmics","The Cure","Bon Jovi","Guns N' Roses","New Order","George Michael"],
+  "1990s": ["Oasis","Blur","Radiohead","Nirvana","Pearl Jam","Green Day","Spice Girls","Backstreet Boys","Mariah Carey","Britney Spears","Red Hot Chili Peppers","The Verve","R.E.M.","Beck","Metallica"],
+  "2000s": ["Coldplay","Beyoncé","Rihanna","Eminem","Kanye West","The Killers","Arcade Fire","Arctic Monkeys","Foo Fighters","Muse","Linkin Park","Lady Gaga","Kings of Leon","Taylor Swift","Alicia Keys"],
+  "2010s": ["Adele","Ed Sheeran","Dua Lipa","The Weeknd","Imagine Dragons","Billie Eilish","Bruno Mars","Kendrick Lamar","Harry Styles","Lorde","Hozier","Sia","Tame Impala","The 1975","Drake"],
+  "2020s": ["Olivia Rodrigo","Doja Cat","Måneskin","Sam Fender","The Kid LAROI","Tate McRae","Charli XCX","Sabrina Carpenter","Fred again..","Billie Eilish","Taylor Swift","Noah Kahan","Jung Kook","Bad Bunny","ROSALÍA"]
+};
+
+// Multiple-choice for Members (keeps UX simple & reliable)
+const MEMBER_QUESTIONS = [
+  { q:"Name any two members of U2.", options:["Bono & The Edge","Bono & Dave Grohl","Noel & Liam Gallagher","Sting & Andy Summers"], a:"Bono & The Edge" },
+  { q:"Who was Nirvana’s drummer on Nevermind?", options:["Dave Grohl","Taylor Hawkins","Tré Cool","Lars Ulrich"], a:"Dave Grohl" },
+  { q:"Which duo fronted Oasis?", options:["Noel & Liam Gallagher","Chris & Jonny","Jack & Meg White","Guy & Mark"], a:"Noel & Liam Gallagher" },
+  { q:"Who is the lead singer of The Cure?", options:["Robert Smith","Morrissey","Thom Yorke","Brandon Flowers"], a:"Robert Smith" },
+  { q:"Name any two members of ABBA.", options:["Agnetha & Anni-Frid","Beyoncé & Kelly","Lorde & Jack","Gwen & Tony"], a:"Agnetha & Anni-Frid" },
+  { q:"Who is the lead vocalist of Radiohead?", options:["Thom Yorke","Chris Martin","Matt Bellamy","Alex Turner"], a:"Thom Yorke" },
+  { q:"Name the two core members of The White Stripes.", options:["Jack & Meg White","Jack White & Alison","Josh & Troy","Jack & Dave"], a:"Jack & Meg White" },
+  { q:"Who is the frontman of Coldplay?", options:["Chris Martin","Brandon Flowers","Bono","Dan Reynolds"], a:"Chris Martin" },
+  { q:"Name any two members of Red Hot Chili Peppers.", options:["Anthony & Flea","Kurt & Krist","Axl & Slash","Dave & Nate"], a:"Anthony & Flea" },
+  { q:"Who is the primary vocalist of Paramore?", options:["Hayley Williams","Amy Lee","Karen O","Shirley Manson"], a:"Hayley Williams" },
+  { q:"Name any two members of Metallica.", options:["James Hetfield & Lars Ulrich","Dave Grohl & Pat Smear","Matt Bellamy & Chris Wolstenholme","Axl Rose & Duff McKagan"], a:"James Hetfield & Lars Ulrich" },
+  { q:"Who fronted The Smiths?", options:["Morrissey","Robert Smith","Brett Anderson","Ian Curtis"], a:"Morrissey" },
+  { q:"Who is the bassist of Muse?", options:["Chris Wolstenholme","Flea","John Paul Jones","Nikki Sixx"], a:"Chris Wolstenholme" }
+];
+
+/* ===================== Helpers ===================== */
+const $ = s => document.querySelector(s);
+const shuffle = a => a.sort(()=>Math.random()-0.5);
+const uniqBy = (arr, keyFn) => { const seen = new Set(); return arr.filter(x=>{ const k=keyFn(x); if(seen.has(k)) return false; seen.add(k); return true; }); };
+
+const normalize = s => (s||"")
+  .toLowerCase()
+  .replace(/\(.*?\)|\[.*?]|feat\.?.*$/gi,"")
+  .replace(/[-–—]|remaster(?:ed)?|radio edit|single version|album version|live|version/gi," ")
+  .replace(/[^a-z0-9 ]+/gi," ")
+  .replace(/\s+/g," ")
+  .trim();
+
+const yearStr = d => new Date(d).getFullYear().toString();
+const hiResArt = url => url ? url.replace(/\/\d{2,4}x\d{2,4}(?=[^/]*$)/, "/600x600") : null;
+
+/* ===================== iTunes Search ===================== */
+async function searchSongs(artist, limit=50, country="GB"){
+  const url = `https://itunes.apple.com/search?term=${encodeURIComponent(artist)}&entity=song&limit=${limit}&country=${country}`;
+  const r = await fetch(url);
+  if(!r.ok) throw new Error("iTunes HTTP "+r.status);
+  const j = await r.json();
+  const rows = (j.results||[]).filter(x => x.previewUrl && x.trackName && x.collectionName && x.releaseDate);
+  return uniqBy(rows, r => `${r.artistName}|${r.trackName}|${r.collectionName}`);
+}
+
+async function buildPool(updateStatus){
+  const decades = Object.keys(ARTISTS);
+  const chosen = decades.flatMap(dec => shuffle([...ARTISTS[dec]]).slice(0,3)); // 3 per decade → ~15 artists
+  let pool = [];
+  let done = 0;
+  for(const artist of chosen){
+    try{
+      updateStatus?.(`Fetching ${artist} <span class="spinner"></span>`);
+      const items = await searchSongs(artist, 50);
+      pool.push(...shuffle(items).slice(0,6)); // keep variety
+    }catch(e){
+      // skip artist on failure
+    } finally {
+      done++; updateStatus?.(`Fetched ${done}/${chosen.length} artists`);
+    }
+  }
+  if(pool.length < 80){ // top up if needed
+    const all = decades.flatMap(d => ARTISTS[d]);
+    for(let i=0;i<40 && pool.length<100;i++){
+      const a = all[Math.floor(Math.random()*all.length)];
+      try{
+        updateStatus?.(`Topping up with ${a} <span class="spinner"></span>`);
+        const items = await searchSongs(a, 30);
+        pool.push(...shuffle(items).slice(0,4));
+      }catch{}
+    }
+  }
+  updateStatus?.("Tracks ready.");
+  return pool;
+}
+
+/* ===================== Question builders ===================== */
+function qAlbums(entry,pool){
+  const correct = entry.collectionName;
+  const wrong = uniqBy(
+    shuffle(pool).map(x=>x.collectionName).filter(n => n && n!==correct),
+    x=>x
+  ).slice(0,3);
+  return {
+    category:"Albums",
+    mode:"choice",
+    audio: entry.previewUrl,
+    meta: entry.artistName,
+    artwork: hiResArt(entry.artworkUrl100),
+    question:"Which album is this track from?",
+    options: shuffle([correct,...wrong]),
+    answer: correct
+  };
+}
+
+function qIntros(entry){
+  const correct = entry.trackName;
+  return {
+    category:"Intros",
+    mode:"text",
+    audio: entry.previewUrl,
+    meta: entry.artistName,
+    artwork: hiResArt(entry.artworkUrl100),
+    question:"Name the track from this intro.",
+    answerText: correct,
+    answerNorm: normalize(correct)
+  };
+}
+
+function qYears(entry){
+  const correct = yearStr(entry.releaseDate);
+  const base = parseInt(correct,10);
+  const picks = new Set([correct, String(base-1), String(base+1), String(base-3), String(base+3), String(base-7), String(base+7)]);
+  const options = shuffle([...picks]).slice(0,4);
+  return {
+    category:"Year Released",
+    mode:"choice",
+    audio: entry.previewUrl,
+    meta: `${entry.artistName} — ${entry.trackName}`,
+    artwork: hiResArt(entry.artworkUrl100),
+    question:"What year was this released?",
+    options: shuffle(options),
+    answer: correct
+  };
+}
+
+function memberQs(){
+  return MEMBER_QUESTIONS.map(x=>({
+    category:"Band Members",
+    mode:"choice",
+    audio:null,
+    meta:"",
+    artwork:null,
+    question:x.q,
+    options: shuffle([...x.options]),
+    answer: x.a
+  }));
+}
+
+/* ===================== Game state ===================== */
+let QUESTIONS=[], idx=0, score=0;
+let perRound = { "Albums":0, "Intros":0, "Year Released":0, "Band Members":0 };
+let answers = []; // { pick, correct, q }
+let clipTimer = null;
+const CLIP_LEN = 18; // seconds (within 15–20 window)
+
+function show(id){
+  document.querySelectorAll(".screen").forEach(s=>s.classList.remove("active"));
+  document.getElementById(id).classList.add("active");
+}
+
+function clampClip(player, seconds=CLIP_LEN){
+  if(!player.duration || isNaN(player.duration)) return;
+  try { player.currentTime = 0; } catch{}
+  clearInterval(clipTimer);
+  const endAt = Math.min(seconds, player.duration);
+  clipTimer = setInterval(()=>{
+    if(player.currentTime >= endAt - 0.05){
+      player.pause(); clearInterval(clipTimer);
+    }
+  }, 120);
+}
+
+function setArtwork(url, caption){
+  const box = $("#artBox"), img = $("#artImg");
+  if(url){
+    box.classList.remove("hidden");
+    img.src = url;
+    img.alt = caption || "Album artwork";
+  }else{
+    box.classList.add("hidden");
+    img.removeAttribute("src");
+    img.removeAttribute("alt");
+  }
+}
+
+function render(){
+  const q = QUESTIONS[idx];
+  $("#crumb").innerHTML = `${q.category} · Q ${idx+1}/${QUESTIONS.length}`;
+  $("#scoreMini").textContent = `Score: ${score}`;
+  $("#category").textContent = q.category;
+  $("#question").textContent = q.question;
+
+  // artwork
+  setArtwork(q.artwork, q.meta);
+
+  // audio
+  const player = $("#player");
+  const meta = $("#meta");
+  player.pause();
+  player.removeAttribute("src");
+  if(q.audio){
+    player.src = q.audio;
+    meta.textContent = q.meta || "";
+    $("#btnPlay").onclick = ()=> player.play().then(()=> clampClip(player, CLIP_LEN)).catch(()=>{});
+    $("#btnReplay").onclick = ()=> player.play().then(()=> clampClip(player, CLIP_LEN)).catch(()=>{});
+  }else{
+    meta.textContent = "";
+    $("#btnPlay").onclick = null;
+    $("#btnReplay").onclick = null;
+  }
+
+  // options/text modes
+  const op = $("#options");
+  const tWrap = $("#textWrap");
+  const feedback = $("#feedback");
+  const input = $("#textInput");
+  op.innerHTML = ""; feedback.textContent = ""; input.value = "";
+
+  if(q.mode === "choice"){
+    tWrap.classList.add("hidden");
+    op.classList.remove("hidden");
+    q.options.forEach(opt=>{
+      const b = document.createElement("button");
+      b.className = "option";
+      b.textContent = opt;
+      b.onclick = ()=>{
+        const ok = (opt === q.answer);
+        if(ok){ b.classList.add("correct"); score++; perRound[q.category]++; }
+        else{
+          b.classList.add("incorrect");
+          [...op.children].forEach(c=>{ if(c.textContent===q.answer) c.classList.add("correct"); });
+        }
+        answers[idx] = { pick: opt, correct: ok, q };
+        $("#scoreMini").textContent = `Score: ${score}`;
+      };
+      op.appendChild(b);
+    });
+  }else{ // text
+    op.classList.add("hidden");
+    tWrap.classList.remove("hidden");
+    $("#btnCheck").onclick = ()=>{
+      const guess = input.value;
+      const ok = normalize(guess) === q.answerNorm || q.answerNorm.includes(normalize(guess)) || normalize(guess).includes(q.answerNorm);
+      feedback.textContent = ok ? `Correct — ${q.answerText}` : `Not quite. Correct: ${q.answerText}`;
+      feedback.className = "feedback " + (ok ? "good" : "bad");
+      if(answers[idx]==null){ if(ok){ score++; perRound[q.category]++; } answers[idx] = { pick: guess, correct: ok, q }; }
+      $("#scoreMini").textContent = `Score: ${score}`;
+    };
+    input.onkeydown = (e)=>{ if(e.key==="Enter") $("#btnCheck").click(); };
+  }
+}
+
+function finish(){
+  show("screen-results");
+  $("#finalScore").textContent = score;
+  $("#finalTotal").textContent = QUESTIONS.length;
+  $("#scAlbums").textContent = perRound["Albums"];
+  $("#scIntros").textContent = perRound["Intros"];
+  $("#scYears").textContent = perRound["Year Released"];
+  $("#scMembers").textContent = perRound["Band Members"];
+  const list = $("#review");
+  list.innerHTML = "";
+  answers.forEach((a,i)=>{
+    if(!a) return;
+    const d = document.createElement("div");
+    d.className = "review-card";
+    d.innerHTML = `<div><strong>Q${i+1} · ${a.q.category}</strong></div>
+                   <div>${a.q.question}</div>
+                   <div>Your answer: ${a.pick ?? "—"} ${a.correct ? "✅" : "❌"} · Correct: ${a.q.mode==="choice" ? a.q.answer : a.q.answerText}</div>`;
+    list.appendChild(d);
+  });
+}
+
+/* ===================== Build full 50-Q set ===================== */
+async function makeQuestions(updateStatus){
+  const pool = await buildPool(updateStatus);
+
+  // Albums (MC)
+  const albumsPick = shuffle(pool).slice(0, ROUND_SIZES["Albums"]);
+  const albumsQs = albumsPick.map(p => qAlbums(p, pool));
+
+  // Intros (text)
+  const introsPick = shuffle(pool).slice(ROUND_SIZES["Albums"], ROUND_SIZES["Albums"] + ROUND_SIZES["Intros"]);
+  const introsQs = introsPick.map(p => qIntros(p));
+
+  // Year Released (MC)
+  const yearsPick = shuffle(pool).slice(ROUND_SIZES["Albums"] + ROUND_SIZES["Intros"],
+                                        ROUND_SIZES["Albums"] + ROUND_SIZES["Intros"] + ROUND_SIZES["Year Released"]);
+  const yearsQs = yearsPick.map(p => qYears(p));
+
+  // Band Members (MC bank)
+  const membersQs = memberQs().slice(0, ROUND_SIZES["Band Members"]);
+
+  return shuffle([...albumsQs, ...introsQs, ...yearsQs, ...membersQs]);
+}
+
+/* ===================== Controllers ===================== */
+$("#btnStartAll").onclick = async ()=>{
+  show("screen-start");
+  const status = $("#fetchStatus");
+  status.innerHTML = `Building rounds <span class="spinner"></span>`;
+  try{
+    QUESTIONS = await makeQuestions((msg)=> status.innerHTML = msg);
+    // reset state
+    idx = 0; score = 0; answers = [];
+    perRound = { "Albums":0, "Intros":0, "Year Released":0, "Band Members":0 };
+    status.textContent = "Ready!";
+    show("screen-quiz");
+    render();
+  }catch(err){
+    status.textContent = "Error fetching tracks. Check your internet and try again.";
+    console.error(err);
+  }
+};
+
+$("#btnPrev").onclick = ()=>{ if(idx>0){ idx--; render(); } };
+$("#btnNext").onclick = ()=>{ if(idx<QUESTIONS.length-1){ idx++; render(); } else { finish(); } };
+$("#btnRestart").onclick = ()=>{ show("screen-start"); $("#fetchStatus").textContent=""; };
+$("#btnStartRounds").onclick = ()=>{ show("screen-start"); $("#fetchStatus").textContent=""; };
+
+</script>
+</body>
+</html>
